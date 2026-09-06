@@ -1,0 +1,391 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    ============================================================================
+    REVISION NOTES — MODULE 1: Maven Basics (read this before touching pom.xml)
+    ============================================================================
+    WHAT IS pom.xml?
+      "Project Object Model" — Maven's blueprint file for the project.
+      It tells Maven:
+        1. WHO this project is (groupId, artifactId, version = "GAV coordinates")
+        2. WHAT dependencies it needs (Selenium, Cucumber, TestNG etc. — added in Module 3)
+        3. HOW to build it (plugins, Java version, build lifecycle)
+
+    WHY MAVEN OVER PLAIN JDK? (common interview question)
+      - Dependency Management : No manual jar downloads; Maven pulls from
+        Maven Central automatically based on GAV coordinates you declare.
+      - Standard Directory Layout : Every Maven project looks the same
+        (src/main/java, src/test/java...) -> any engineer can open ANY
+        Maven project and instantly know where things live.
+      - Build Lifecycle : validate -> compile -> test -> package -> verify
+        -> install -> deploy. Jenkins triggers these same phases (e.g. "mvn test")
+        so local runs and CI runs behave identically.
+      - Plugin Ecosystem : Surefire (unit/integration test runner),
+        Compiler plugin (enforce Java version), etc.
+
+    GAV COORDINATES (uniquely identify this project / any dependency):
+      groupId    -> reverse company domain, e.g. com.company
+      artifactId -> project/module name
+      version    -> project version (SNAPSHOT = under active development)
+    ============================================================================
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- GAV Coordinates for OUR framework -->
+    <groupId>com.company.automation</groupId>
+    <artifactId>enterprise-selenium-framework</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <packaging>jar</packaging>
+
+    <name>Enterprise Selenium Cucumber BDD Framework</name>
+    <description>
+        Enterprise-grade UI Test Automation Framework using Selenium WebDriver,
+        Cucumber BDD, TestNG, Page Object Model + Page Factory, Singleton Driver
+        Management, Aeonbits Owner config management, Jira + Jenkins integration.
+    </description>
+
+    <!--
+        ========================================================================
+        REVISION NOTES — MODULE 2: Dependency Management Deep-Dive
+        ========================================================================
+        VERSION NOTE: versions below were verified live against Maven Central /
+        mvnrepository.com at the time of writing (Sept 2026). ALWAYS re-verify
+        at mvnrepository.com before a real project build — libraries release
+        monthly, and a stale version copy-pasted from anywhere (docs, blogs,
+        even this file) can quietly be a few releases behind.
+
+        WHY CENTRALIZE VERSIONS AS PROPERTIES?
+          -> Single source of truth. Bump ONE line here instead of hunting
+             across a 200-line <dependencies> block.
+          -> Also required for BOM-style multi-module setups later.
+    -->
+    <properties>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+        <!-- Core automation stack -->
+        <selenium.version>4.47.0</selenium.version>
+        <cucumber.version>7.20.1</cucumber.version>
+        <testng.version>7.10.2</testng.version>
+        <webdrivermanager.version>5.9.2</webdrivermanager.version>
+
+        <!-- Config management -->
+        <owner.version>1.0.12</owner.version>
+
+        <!-- Logging -->
+        <log4j.version>2.24.1</log4j.version>
+
+        <!-- Reporting -->
+        <extentreports.version>5.1.2</extentreports.version>
+
+        <!-- Data-driven testing / JSON -->
+        <apache.poi.version>5.3.0</apache.poi.version>
+        <jackson.version>2.18.0</jackson.version>
+
+        <!-- API testing (used later for Jira REST client too) -->
+        <rest.assured.version>5.5.0</rest.assured.version>
+
+        <!-- Build plugins -->
+        <maven.compiler.plugin.version>3.13.0</maven.compiler.plugin.version>
+        <maven.surefire.plugin.version>3.5.1</maven.surefire.plugin.version>
+
+        <!-- MODULE 7: default environment. Overridable via -Denv=staging on
+             the command line (highest precedence) OR by activating a
+             Maven profile below (mvn test -Pstaging). Forwarded into the
+             forked Surefire test JVM as a real system property via
+             <systemPropertyVariables> below — this is what Owner's
+             ${env} placeholder (Module 3) actually reads at runtime. -->
+        <env>qa</env>
+
+        <!-- MODULE 7: default TestNG suite file. Jenkins overrides this
+             per pipeline stage via -DsuiteXmlFile=testng-smoke.xml or
+             -DsuiteXmlFile=testng-regression.xml (Module 10) — local devs
+             get the full combined suite by default with zero flags needed. -->
+        <suiteXmlFile>testng.xml</suiteXmlFile>
+    </properties>
+
+    <!--
+        ========================================================================
+        DEPENDENCIES BLOCK
+        ========================================================================
+        KEY CONCEPT #1 — <scope>test</scope>
+          Marks a dependency as needed ONLY for compiling/running tests, NOT
+          shipped in the final production artifact. Since this ENTIRE project
+          IS a test framework, almost everything below is scope=test.
+          (Contrast: in a real product's pom, Selenium would be test-scoped,
+          but something like a logging lib might be default "compile" scope
+          because production code uses it too.)
+
+        KEY CONCEPT #2 — Transitive Dependencies
+          When you declare selenium-java, Maven automatically pulls in
+          EVERYTHING selenium-java itself depends on (its own dependencies) —
+          you never declare those manually. Run `mvn dependency:tree` to SEE
+          this chain. This is also WHERE version conflicts happen: if two
+          libraries you depend on each pull a different version of the SAME
+          transitive dependency (e.g. two different Jackson versions), Maven
+          resolves it via "nearest wins" — the one declared closest to your
+          own pom.xml wins. This is a classic interview trap question:
+          "How does Maven resolve conflicting transitive dependency versions?"
+          Answer: Dependency Mediation — nearest declaration in the tree wins;
+          if same depth, the FIRST declared one wins.
+
+        KEY CONCEPT #3 — <dependencyManagement> (not used here, but know it)
+          In multi-module enterprise projects, a PARENT pom uses
+          <dependencyManagement> to declare versions WITHOUT actually adding
+          the dependency — child modules then declare the dependency WITHOUT
+          a version tag, inheriting it from the parent. This guarantees every
+          module in a large company repo uses the SAME dependency versions.
+          We're single-module for now, so we skip this — but expect this
+          question in interviews.
+    -->
+    <dependencies>
+
+        <!-- ============ SELENIUM WEBDRIVER ============
+             Core browser automation engine. selenium-java is an umbrella
+             artifact that transitively pulls selenium-api, selenium-chrome-driver,
+             selenium-firefox-driver, selenium-remote-driver, etc.
+
+             MODULE 5 FIX: scope intentionally left as DEFAULT (compile),
+             NOT scope=test. Reason: DriverManager/DriverFactory (which
+             import org.openqa.selenium.*) live in src/main/java as
+             REUSABLE FRAMEWORK CLASSES, not src/test/java. Maven's
+             scope=test dependencies are only visible on the TEST
+             classpath — src/main/java literally cannot compile against
+             them. Rule of thumb going forward: ANY dependency imported by
+             a class under src/main/java must be default/compile scope.
+             Only TestNG/Cucumber (used exclusively under src/test/java)
+             correctly remain scope=test below. -->
+        <dependency>
+            <groupId>org.seleniumhq.selenium</groupId>
+            <artifactId>selenium-java</artifactId>
+            <version>${selenium.version}</version>
+        </dependency>
+
+        <!-- ============ WEBDRIVERMANAGER (kept commented — reference only) ============
+             MODULE 5 DECISION: our DriverFactory now uses Selenium's INBUILT
+             "Selenium Manager" (built into selenium-java since 4.6) instead
+             of this external library — zero extra setup code, one less
+             dependency to maintain. Left here, commented, because enterprise
+             CI setups sometimes still prefer Bonigarcia's WebDriverManager
+             for finer control over driver caching/proxy/forced versions in
+             locked-down Jenkins containers. Uncomment + restore the
+             WebDriverManager.xxxdriver().setup() calls in DriverFactory if
+             your organization's CI environment needs that extra control.
+        <dependency>
+            <groupId>io.github.bonigarcia</groupId>
+            <artifactId>webdrivermanager</artifactId>
+            <version>${webdrivermanager.version}</version>
+            <scope>test</scope>
+        </dependency>
+        -->
+
+        <!-- ============ CUCUMBER BDD ============ -->
+        <dependency>
+            <groupId>io.cucumber</groupId>
+            <artifactId>cucumber-java</artifactId>
+            <version>${cucumber.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.cucumber</groupId>
+            <artifactId>cucumber-testng</artifactId>
+            <version>${cucumber.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <!-- cucumber-picocontainer: enables Dependency Injection across
+             Step Definition classes, so we can share ONE WebDriver instance
+             / context object between LoginSteps, DashboardSteps, etc.
+             without static variables. We'll use this heavily in Module 7. -->
+        <dependency>
+            <groupId>io.cucumber</groupId>
+            <artifactId>cucumber-picocontainer</artifactId>
+            <version>${cucumber.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- ============ TESTNG ============
+             Our test runner/orchestrator. Drives @CucumberOptions, parallel
+             execution, retry logic, and integrates with Surefire. -->
+        <dependency>
+            <groupId>org.testng</groupId>
+            <artifactId>testng</artifactId>
+            <version>${testng.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- ============ AEONBITS OWNER ============
+             Interface-based, strongly-typed config management. Replaces
+             clunky java.util.Properties + manual getProperty() calls.
+             Deep dive coming in Module 4. -->
+        <dependency>
+            <groupId>org.aeonbits.owner</groupId>
+            <artifactId>owner</artifactId>
+            <version>${owner.version}</version>
+        </dependency>
+
+        <!-- ============ LOG4J2 ============
+             Enterprise logging (console + file appenders). Note: TWO
+             artifacts needed — api (interfaces used in code) and core
+             (actual implementation loaded at runtime). This split itself is
+             an interview question: "Why does Log4j2 need two dependencies?" -->
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-api</artifactId>
+            <version>${log4j.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-core</artifactId>
+            <version>${log4j.version}</version>
+        </dependency>
+
+        <!-- ============ EXTENT REPORTS ============
+             Rich HTML test execution reports (screenshots, pass/fail,
+             timeline). Alternative: Allure — we'll discuss the trade-off
+             in Module 8. -->
+        <dependency>
+            <groupId>com.aventstack</groupId>
+            <artifactId>extentreports</artifactId>
+            <version>${extentreports.version}</version>
+        </dependency>
+
+        <!-- ============ APACHE POI ============
+             Read/write Excel files — used for data-driven testing
+             (test data maintained in .xlsx instead of hardcoded). -->
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-ooxml</artifactId>
+            <version>${apache.poi.version}</version>
+        </dependency>
+
+        <!-- ============ JACKSON ============
+             JSON (de)serialization — used for test data files AND for
+             parsing Jira API JSON responses in Module 9. -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>${jackson.version}</version>
+        </dependency>
+
+        <!-- ============ REST ASSURED ============
+             HTTP client for API calls — we will reuse THIS SAME dependency
+             for our JiraApiClient in Module 9 (no need for a separate HTTP
+             library just for Jira integration).
+             MODULE 5 FIX: default (compile) scope, NOT test — JiraApiClient
+             will live under src/main/java/.../integrations/jira/, same
+             reasoning as the Selenium fix above. -->
+        <dependency>
+            <groupId>io.rest-assured</groupId>
+            <artifactId>rest-assured</artifactId>
+            <version>${rest.assured.version}</version>
+        </dependency>
+
+    </dependencies>
+
+    <!--
+        ========================================================================
+        BUILD BLOCK
+        ========================================================================
+        maven-compiler-plugin -> enforces Java version at COMPILE time (belt
+          and suspenders alongside the maven.compiler.source/target properties).
+        maven-surefire-plugin -> THE plugin that actually executes tests when
+          you run `mvn test`. This is the exact command Jenkins will call in
+          Module 10. Its <suiteXmlFiles> config (added in Module 7) is what
+          points Surefire at our TestNG runner/testng.xml.
+    -->
+    <build>
+        <finalName>enterprise-selenium-framework</finalName>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>${maven.compiler.plugin.version}</version>
+                <configuration>
+                    <source>${maven.compiler.source}</source>
+                    <target>${maven.compiler.target}</target>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>${maven.surefire.plugin.version}</version>
+                <!--
+                    MODULE 7: this <configuration> is what makes
+                    `mvn test` actually pick up our testng.xml (and
+                    therefore its data-provider-thread-count + which
+                    Runner class to execute), instead of Surefire's
+                    default behavior of blindly scanning for classes
+                    named *Test.java / Test*.java.
+
+                    ${suiteXmlFile} resolves from the property above by
+                    default, but Jenkins overrides it per pipeline stage:
+                      mvn test -DsuiteXmlFile=testng-smoke.xml -Dcucumber.filter.tags="@smoke"
+                      mvn test -DsuiteXmlFile=testng-regression.xml -Dcucumber.filter.tags="@regression"
+                    Zero code changes, zero recompilation, just a
+                    different command-line flag per Jenkins stage
+                    (Module 10 will show the actual Jenkinsfile stage
+                    definitions using exactly this).
+                -->
+                <configuration>
+                    <suiteXmlFiles>
+                        <suiteXmlFile>${suiteXmlFile}</suiteXmlFile>
+                    </suiteXmlFiles>
+                    <!-- MODULE 7: forwards the Maven ${env} property into
+                         the forked test JVM as an actual -Denv=... system
+                         property — without this, Owner's @Config.Sources
+                         ${env} placeholder (Module 3) would never see a
+                         value set via Maven profile activation, only one
+                         passed directly as a raw -Denv flag. -->
+                    <systemPropertyVariables>
+                        <env>${env}</env>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+    <!--
+        ========================================================================
+        PROFILES — MODULE 7
+        ========================================================================
+        WHY PROFILES INSTEAD OF JUST ALWAYS TYPING -Denv=xxx?
+          Both work — profiles are a convenience/readability layer.
+          `mvn test -Pstaging` reads cleaner in a Jenkins job configuration
+          UI or a README than remembering the exact property name, and
+          profiles CAN also bundle in other environment-specific settings
+          later (different plugin configs, different dependency sets) if
+          the project ever needs that — a raw -D flag can only ever set
+          one property at a time.
+          Command-line -Denv=xxx ALWAYS wins over a profile's <env> value
+          if both are somehow supplied — Maven's property precedence rules.
+        ========================================================================
+    -->
+    <profiles>
+        <profile>
+            <id>qa</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <properties>
+                <env>qa</env>
+            </properties>
+        </profile>
+        <profile>
+            <id>staging</id>
+            <properties>
+                <env>staging</env>
+            </properties>
+        </profile>
+        <profile>
+            <id>prod</id>
+            <properties>
+                <env>prod</env>
+            </properties>
+        </profile>
+    </profiles>
+
+</project>

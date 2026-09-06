@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+<!--
+    ============================================================================
+    REVISION NOTES — MODULE 7: Tag-based suite strategy — SMOKE suite
+    ============================================================================
+    IMPORTANT NUANCE: this XML file does NOT filter by tag itself — TestNG
+    has no native concept of Cucumber tags. The ACTUAL tag filtering
+    happens via a system property Cucumber's own runtime reads
+    automatically, with priority over anything hardcoded in @CucumberOptions:
+
+        mvn test -DsuiteXmlFile=testng-smoke.xml -Dcucumber.filter.tags="@smoke"
+
+    So this file's real job is just: "run the SAME TestRunner class, but
+    intended to be paired with a @smoke tag filter, with a thread count
+    tuned for a FAST pipeline stage." Smoke suites are typically small
+    (a handful of critical-path scenarios) and run on EVERY commit for
+    fast feedback — so we don't need many threads; low overhead matters
+    more than raw parallelism here.
+
+    ENTERPRISE PATTERN THIS SETS UP FOR MODULE 10:
+      Jenkins pipeline stage "Smoke Test" (runs on every PR/commit) uses
+      THIS file + @smoke tag filter. A separate nightly "Full Regression"
+      Jenkins job uses testng-regression.xml + @regression tag filter with
+      a much higher thread count, since it runs on a schedule where total
+      wall-clock time matters more than resource frugality.
+    ============================================================================
+-->
+<suite name="SmokeSuite" data-provider-thread-count="2" verbose="1">
+
+    <listeners>
+        <listener class-name="com.company.automation.listeners.AnnotationTransformer"/>
+        <listener class-name="com.company.automation.listeners.ExtentReportListener"/>
+    </listeners>
+
+    <test name="SmokeTests">
+        <classes>
+            <class name="com.company.automation.runners.TestRunner"/>
+        </classes>
+    </test>
+
+</suite>

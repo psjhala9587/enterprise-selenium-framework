@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+<!--
+    ============================================================================
+    REVISION NOTES — MODULE 7: Tag-based suite strategy — REGRESSION suite
+    ============================================================================
+    Pair with: mvn test -DsuiteXmlFile=testng-regression.xml -Dcucumber.filter.tags="@regression"
+
+    Higher data-provider-thread-count than the smoke suite — full
+    regression runs cover many more scenarios, so wall-clock time matters
+    more here, and this typically runs on a scheduled nightly Jenkins job
+    (not on every commit) where the build agent isn't time-pressured by
+    developers waiting on immediate PR feedback. Tune this number to your
+    actual CI agent's CPU/RAM and how many concurrent browser sessions it
+    can realistically sustain — an interviewer WILL ask "how did you decide
+    your thread count," and "we load-tested our Jenkins agent and picked
+    the highest count before test flakiness/resource contention appeared"
+    is the kind of grounded answer that separates real experience from
+    guesswork.
+    ============================================================================
+-->
+<suite name="RegressionSuite" data-provider-thread-count="6" verbose="1">
+
+    <listeners>
+        <listener class-name="com.company.automation.listeners.AnnotationTransformer"/>
+        <listener class-name="com.company.automation.listeners.ExtentReportListener"/>
+    </listeners>
+
+    <test name="RegressionTests">
+        <classes>
+            <class name="com.company.automation.runners.TestRunner"/>
+        </classes>
+    </test>
+
+</suite>

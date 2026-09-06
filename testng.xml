@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+<!--
+    ============================================================================
+    REVISION NOTES — MODULE 7: testng.xml — the execution control panel
+    ============================================================================
+    WHY DOES THIS FILE EXIST SEPARATELY FROM TestRunner.java?
+      TestRunner.java defines WHAT can run (which features/glue/tags via
+      @CucumberOptions). testng.xml controls HOW it runs at execution time —
+      thread count, which test classes are included in a given run, and
+      (later) which Listeners are attached. Keeping this in XML (not Java)
+      means changing thread count or swapping which suite runs does NOT
+      require recompiling the project — critical for Jenkins to control
+      execution behavior via parameters without touching source code.
+
+    data-provider-thread-count="3":
+      This is THE setting that determines how many Cucumber Scenarios run
+      CONCURRENTLY, because TestRunner.scenarios() is annotated with
+      @DataProvider(parallel = true) (Module 7 change). Each of the 3
+      threads gets its OWN DriverManager ThreadLocal WebDriver (Module 4)
+      and its OWN PageObjectManager (Module 6) — fully isolated.
+      NOTE: start conservative (2-3) locally; real CI thread counts depend
+      on the build agent's CPU/RAM and how many browser instances it can
+      realistically run simultaneously without starving resources.
+
+    THIS IS THE DEFAULT/LOCAL DEV SUITE — runs EVERYTHING, no tag filter.
+    See testng-smoke.xml and testng-regression.xml (Module 7) for the
+    tag-scoped variants used by Jenkins pipeline stages.
+    ============================================================================
+-->
+<suite name="EnterpriseAutomationSuite" data-provider-thread-count="3" verbose="1">
+
+    <!-- MODULE 8: AnnotationTransformer auto-wires RetryAnalyzer onto every
+         test (see AnnotationTransformer.java notes); ExtentReportListener
+         drives the HTML report + screenshot-on-failure lifecycle. -->
+    <listeners>
+        <listener class-name="com.company.automation.listeners.AnnotationTransformer"/>
+        <listener class-name="com.company.automation.listeners.ExtentReportListener"/>
+    </listeners>
+
+    <test name="RegressionAndSmokeCombined">
+        <classes>
+            <class name="com.company.automation.runners.TestRunner"/>
+        </classes>
+    </test>
+
+</suite>

@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    ============================================================================
+    REVISION NOTES — MODULE 8: Log4j2 config — WHY XML config, not code?
+    ============================================================================
+    Log4j2 reads this file automatically from the classpath at startup —
+    zero Java code needed to "activate" logging. This means log FORMAT and
+    log LEVEL (INFO vs DEBUG vs ERROR) can be changed by editing this file
+    alone — no recompilation. Useful in real debugging: temporarily bump
+    root level to DEBUG when investigating a flaky CI failure, without
+    touching a single .java file.
+
+    PLACED IN src/main/resources (NOT src/test/resources):
+      This makes it visible on BOTH the main and test classpaths (test
+      classpath always includes main resources), consistent with our
+      Module 5 decision to keep reusable framework infrastructure under
+      src/main. LogUtils.java (our thin wrapper) also lives under
+      src/main/java for the same reason.
+
+    TWO APPENDERS:
+      Console  -> what you see live while running tests locally in your IDE
+      RollingFile -> persists logs to target/logs/automation.log, which
+                     Jenkins archives as a build artifact (Module 10) —
+                     lets you review exactly what happened on a CI run
+                     AFTER the fact, not just watch it scroll by live.
+    ============================================================================
+-->
+<Configuration status="WARN">
+    <Appenders>
+        <Console name="ConsoleAppender" target="SYSTEM_OUT">
+            <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss} [%t] %-5level %logger{36} - %msg%n"/>
+        </Console>
+
+        <RollingFile name="FileAppender"
+                     fileName="target/logs/automation.log"
+                     filePattern="target/logs/automation-%d{yyyy-MM-dd}-%i.log.gz">
+            <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss} [%t] %-5level %logger{36} - %msg%n"/>
+            <Policies>
+                <!-- New log file every day OR once the current file hits 10MB,
+                     whichever comes first -->
+                <TimeBasedTriggeringPolicy/>
+                <SizeBasedTriggeringPolicy size="10 MB"/>
+            </Policies>
+            <!-- Keep at most 10 rolled-over files, oldest gets deleted first —
+                 prevents Jenkins workspace disk space from growing forever
+                 across hundreds of nightly regression runs. -->
+            <DefaultRolloverStrategy max="10"/>
+        </RollingFile>
+    </Appenders>
+
+    <Loggers>
+        <!-- Root logger: applies to any class not explicitly listed below.
+             INFO level for normal use. Bump to DEBUG only when actively
+             troubleshooting — DEBUG is noisy (e.g. Selenium's own internal
+             HTTP calls to the browser driver get logged too). -->
+        <Root level="INFO">
+            <AppenderRef ref="ConsoleAppender"/>
+            <AppenderRef ref="FileAppender"/>
+        </Root>
+    </Loggers>
+</Configuration>
