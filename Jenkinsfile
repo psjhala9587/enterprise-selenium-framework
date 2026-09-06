@@ -181,9 +181,15 @@ pipeline {
 
         cleanup {
             // Runs after every OTHER post condition. Good place for
-            // workspace cleanup on agents shared across multiple jobs —
-            // left as a placeholder since a dedicated build agent doesn't
-            // strictly need this, but a shared/pooled agent would.
+            // workspace cleanup on agents shared across multiple jobs.
+            // MODULE 10 GOTCHA: a block with ONLY a comment inside it
+            // (no real step) fails Groovy compilation with "No steps
+            // specified for branch" — every post condition needs AT
+            // LEAST one real step, even if it's just an echo. Uncomment
+            // cleanWs() below (requires the "Workspace Cleanup" plugin)
+            // once you're running on a shared/pooled agent; a dedicated
+            // build agent doesn't strictly need this.
+            echo "Cleanup stage - add cleanWs() here if using a shared/pooled agent."
             // cleanWs()
         }
     }
