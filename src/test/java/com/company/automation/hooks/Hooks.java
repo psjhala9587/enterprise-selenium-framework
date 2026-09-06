@@ -93,6 +93,14 @@ public class Hooks {
             byte[] screenshot = ScreenshotUtils.captureAsBytes(driver);
             scenario.attach(screenshot, "image/png", scenario.getName());
 
+            // MODULE 10 BUG FIX: also save a FILE copy and remember its
+            // path NOW, while `driver` is still alive — ExtentReportListener
+            // (TestNG-level, runs AFTER this entire method + driver.quit()
+            // below have finished) can no longer safely touch `driver`
+            // itself, so it reads this already-captured path instead.
+            String path = ScreenshotUtils.captureAsFile(driver, scenario.getName());
+            ScreenshotUtils.setLastCapturedPath(path);
+
             // NOTE: Module 9 built out automatic Jira bug-ticket creation
             // here (JiraApiClient.createBugTicket + attachScreenshot,
             // guarded by ConfigManager.getConfig().jiraIntegrationEnabled())
