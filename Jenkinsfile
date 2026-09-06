@@ -93,13 +93,36 @@ pipeline {
                 // Module 1/2's decision: mvn compile validates src/main/java
                 // compiles cleanly BEFORE we spend time on test-compile or
                 // execution — fail fast on a broken framework class.
-                sh 'mvn clean compile'
+                //
+                // MODULE 10 GOTCHA: `sh` invokes a Unix/Linux shell — it
+                // does NOT exist on a Windows Jenkins agent (fails with
+                // "Cannot run program 'sh'"). `bat` is the Windows
+                // equivalent. Rather than hardcode either one (which
+                // breaks the moment this pipeline runs on a DIFFERENT
+                // agent OS), we use Jenkins's built-in isUnix() to detect
+                // the agent's OS at runtime and pick the right step —
+                // this is the real enterprise-correct pattern for a
+                // pipeline that might run across mixed Windows/Linux
+                // build agents.
+                script {
+                    if (isUnix()) {
+                        sh 'mvn clean compile'
+                    } else {
+                        bat 'mvn clean compile'
+                    }
+                }
             }
         }
 
         stage('Test Compile') {
             steps {
-                sh 'mvn test-compile'
+                script {
+                    if (isUnix()) {
+                        sh 'mvn test-compile'
+                    } else {
+                        bat 'mvn test-compile'
+                    }
+                }
             }
         }
 
@@ -112,14 +135,22 @@ pipeline {
                     // any NEW execution mechanism, it just calls the same
                     // `mvn test` a developer runs locally, with parameters
                     // sourced from the dropdown instead of typed by hand.
+                    //
+                    // Built as ONE single-line string (no backslash line
+                    // continuation) specifically so it works identically
+                    // whether isUnix() routes it through sh or bat below —
+                    // Windows batch and Unix shell use DIFFERENT line
+                    // continuation characters (^  vs  \), so avoiding
+                    // multi-line continuation entirely sidesteps that
+                    // mismatch rather than maintaining two versions.
                     def tagArg = TAG_FILTER ? "-Dcucumber.filter.tags=\"${TAG_FILTER}\"" : ''
-                    sh """
-                        mvn test \
-                            -Denv=${params.ENVIRONMENT} \
-                            -DsuiteXmlFile=${SUITE_XML} \
-                            -Dbrowser=${params.BROWSER} \
-                            ${tagArg}
-                    """
+                    def mavenCommand = "mvn test -Denv=${params.ENVIRONMENT} -DsuiteXmlFile=${SUITE_XML} -Dbrowser=${params.BROWSER} ${tagArg}"
+
+                    if (isUnix()) {
+                        sh mavenCommand
+                    } else {
+                        bat mavenCommand
+                    }
                 }
             }
         }
