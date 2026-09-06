@@ -2,6 +2,7 @@ package com.company.automation.hooks;
 
 import com.company.automation.base.DriverManager;
 import com.company.automation.config.ConfigManager;
+import com.company.automation.exceptions.FrameworkException;
 import com.company.automation.factory.DriverFactory;
 import com.company.automation.factory.PageObjectManager;
 import com.company.automation.utils.LogUtils;
@@ -70,7 +71,40 @@ public class Hooks {
                 Duration.ofSeconds(ConfigManager.getConfig().pageLoadTimeoutInSeconds()));
         driver.manage().window().maximize();
 
-        driver.get(ConfigManager.getConfig().baseUrl());
+        /*
+         * ====================================================================
+         * MODULE 10 DIAGNOSTIC FIX: fail loudly and clearly instead of
+         * letting a null base.url crash three layers deep inside Selenium
+         * with a cryptic NullPointerException (the real bug hit during
+         * this training — see JENKINS-SETUP.md's "Common Gotchas").
+         *
+         * Logging BOTH environment() and baseUrl() here gives us hard
+         * evidence of what Owner actually resolved at runtime — this is
+         * the difference between guessing at a config problem and
+         * PROVING one. Once you see this log line in Jenkins's console
+         * output, we'll know definitively whether:
+         *   (a) environment() printed something unexpected (env resolution
+         *       itself is broken), or
+         *   (b) environment() printed "qa" correctly, but baseUrl() is
+         *       STILL null (meaning config-qa.properties specifically
+         *       isn't being found on the classpath, even though env
+         *       resolved fine) — a subtly different, more specific bug.
+         * ====================================================================
+         */
+        String resolvedEnv = ConfigManager.getConfig().environment();
+        String resolvedBaseUrl = ConfigManager.getConfig().baseUrl();
+        logger.info("Resolved environment='{}', base.url='{}'", resolvedEnv, resolvedBaseUrl);
+
+        if (resolvedBaseUrl == null || resolvedBaseUrl.isBlank()) {
+            throw new FrameworkException(
+                    "base.url resolved to null/blank for environment '" + resolvedEnv + "'. "
+                            + "This means config-" + resolvedEnv + ".properties was not found on the "
+                            + "classpath (check it exists under src/test/resources/config/ AND was "
+                            + "actually copied to target/test-classes/config/ during the build), "
+                            + "or the 'env' system property itself did not resolve as expected.");
+        }
+
+        driver.get(resolvedBaseUrl);
 
         pageObjectManager = new PageObjectManager(driver);
 
