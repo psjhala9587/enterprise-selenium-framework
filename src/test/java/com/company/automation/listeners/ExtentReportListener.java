@@ -4,7 +4,6 @@ import com.aventstack.extentreports.ExtentReports;
 import com.aventstack.extentreports.ExtentTest;
 import com.aventstack.extentreports.MediaEntityBuilder;
 import com.aventstack.extentreports.reporter.ExtentSparkReporter;
-import com.company.automation.base.DriverManager;
 import com.company.automation.constants.FrameworkConstants;
 import com.company.automation.utils.LogUtils;
 import com.company.automation.utils.ScreenshotUtils;
@@ -80,15 +79,31 @@ public class ExtentReportListener implements ITestListener {
         // Jira integration was later removed from the framework entirely
         // pending a future revisit — see REVISION-NOTES.md. This
         // listener's responsibility stays scoped purely to REPORTING.
-        String screenshotPath = ScreenshotUtils.captureAsFile(
-                DriverManager.getDriver(), result.getMethod().getMethodName());
+        //
+        // MODULE 10 BUG FIX: do NOT attempt DriverManager.getDriver() here
+        // — by the time TestNG calls onTestFailure(), Hooks.tearDown()'s
+        // @After hook has ALREADY run (hooks always complete before the
+        // test result reaches listeners), meaning the driver is already
+        // quit and DriverManager's ThreadLocal already cleared. Read the
+        // path Hooks already saved via ScreenshotUtils.setLastCapturedPath()
+        // instead of crashing on a null driver (the real bug this training
+        // caught — see JENKINS-SETUP.md's "Common Gotchas").
         extentTest.get().fail(result.getThrowable());
-        try {
-            extentTest.get().fail("Screenshot on failure:",
-                    MediaEntityBuilder.createScreenCaptureFromPath(screenshotPath).build());
-        } catch (Exception e) {
-            logger.error("Could not attach screenshot to Extent report", e);
+        String screenshotPath = ScreenshotUtils.getLastCapturedPath();
+        if (screenshotPath != null) {
+            try {
+                extentTest.get().fail("Screenshot on failure:",
+                        MediaEntityBuilder.createScreenCaptureFromPath(screenshotPath).build());
+            } catch (Exception e) {
+                logger.error("Could not attach screenshot to Extent report", e);
+            }
+        } else {
+            logger.warn("No screenshot path available for failed test: {}", result.getName());
         }
+        // Clear immediately after use — same reasoning as DriverManager's
+        // unload() (Module 4): a reused pooled thread must never see a
+        // STALE screenshot path from a previous, unrelated test's failure.
+        ScreenshotUtils.clearLastCapturedPath();
     }
 
     @Override

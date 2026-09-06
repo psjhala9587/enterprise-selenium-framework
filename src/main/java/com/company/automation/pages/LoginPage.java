@@ -34,16 +34,16 @@ import org.openqa.selenium.support.FindBy;
  */
 public class LoginPage extends BasePage {
 
-    @FindBy(id = "username")
+    @FindBy(id = "user-name")
     private WebElement usernameInput;
 
     @FindBy(id = "password")
     private WebElement passwordInput;
 
-    @FindBy(id = "loginButton")
+    @FindBy(id = "login-button")
     private WebElement loginButton;
 
-    @FindBy(css = ".error-message")
+    @FindBy(css = ".error-button")
     private WebElement errorMessage;
 
     // Constructor is implicit here — BasePage's no-arg constructor already

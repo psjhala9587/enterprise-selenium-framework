@@ -45,6 +45,33 @@ public class ScreenshotUtils {
 
     private static final Logger logger = LogUtils.getLogger(ScreenshotUtils.class);
 
+    /**
+     * ========================================================================
+     * MODULE 10 BUG FIX: "last captured screenshot path" holder
+     * ========================================================================
+     * WHY THIS EXISTS: Hooks.tearDown() (Cucumber's @After) quits the
+     * driver and clears DriverManager's ThreadLocal (Module 4) BEFORE
+     * TestNG's ExtentReportListener.onTestFailure() ever runs — hook
+     * execution always completes before the test RESULT is reported to
+     * listeners. That means onTestFailure() can NEVER reliably capture a
+     * FRESH screenshot from DriverManager.getDriver() — the driver is
+     * already gone by then, causing a NullPointerException-style crash
+     * (real bug hit during this training — see JENKINS-SETUP.md's
+     * "Common Gotchas").
+     *
+     * THE FIX: capture the screenshot ONCE, while the driver is still
+     * alive (inside Hooks, right before quit()), store the FILE PATH here,
+     * and have ExtentReportListener read that already-saved path instead
+     * of attempting a second, doomed-to-fail live capture.
+     *
+     * ThreadLocal AGAIN — same recurring pattern (Module 4's DriverManager,
+     * Module 8's ExtentTest) applied to a THIRD piece of per-thread state,
+     * for the same reason: parallel scenarios on different threads must
+     * never see each other's screenshot path.
+     * ========================================================================
+     */
+    private static final ThreadLocal<String> lastCapturedPath = new ThreadLocal<>();
+
     private ScreenshotUtils() {
     }
 
@@ -70,5 +97,17 @@ public class ScreenshotUtils {
         }
 
         return destinationPath;
+    }
+
+    public static void setLastCapturedPath(String path) {
+        lastCapturedPath.set(path);
+    }
+
+    public static String getLastCapturedPath() {
+        return lastCapturedPath.get();
+    }
+
+    public static void clearLastCapturedPath() {
+        lastCapturedPath.remove();
     }
 }
