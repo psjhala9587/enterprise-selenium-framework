@@ -43,6 +43,7 @@ import org.aeonbits.owner.Config;
 public interface EnvironmentConfig extends Config {
 
     @Key("base.url")
+    @DefaultValue("https://www.saucedemo.com")
     String baseUrl();
 
     @Key("browser")
